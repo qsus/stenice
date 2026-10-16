@@ -51,16 +51,16 @@ function roomApiPlugin() {
         try {
           const filePath = path.resolve(__dirname, 'server/status.txt')
           
-          // Return an empty array safely if the file doesn't exist yet
           if (!fs.existsSync(filePath)) {
             res.setHeader('Content-Type', 'application/json')
             return res.end(JSON.stringify([]))
           }
 
           const text = fs.readFileSync(filePath, 'utf-8')
-
-          // Using a Map guarantees we only keep the latest status per room ID
-          const latestRoomsMap = new Map()
+          
+          const allEvents = []
+          let currentFileDate = '2026-01-01' // Default fallback if file doesn't start with a date
+          
           const lines = text.split(/\r?\n/)
 
           for (const line of lines) {
@@ -69,8 +69,12 @@ function roomApiPlugin() {
             // 1. Ignore empty lines and comments
             if (!trimmed || trimmed.startsWith('#')) continue
             
-            // 2. Ignore date headers (e.g. 2026-01-01)
-            if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) continue
+            // 2. Check for date headers (e.g. 2026-01-01)
+            const dateMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})/)
+            if (dateMatch) {
+              currentFileDate = dateMatch[1]
+              continue 
+            }
 
             // 3. Split by whitespace into room name and status
             const parts = trimmed.split(/\s+/)
@@ -78,25 +82,21 @@ function roomApiPlugin() {
 
             const rawRoom = parts[0]
             const rawStatus = parts[1].toLowerCase()
-
-            // Remove hyphens (e.g. B-106 -> B106)
             const cleanRoom = rawRoom.replace(/-/g, '').toUpperCase()
 
-            // 4. Store the state - allowing infected, quarantine, and disinfected
+            // 4. Push EVERY valid event to the array, carrying the current date
             if (['infected', 'quarantine', 'disinfected'].includes(rawStatus)) {
-              latestRoomsMap.set(cleanRoom, {
+              allEvents.push({
                 id: cleanRoom,
                 position: getRoomCoordinates(cleanRoom),
-                status: rawStatus
+                status: rawStatus,
+                date: currentFileDate
               })
             }
           }
 
-          // Convert the Map values to a clean array for JSON
-          const roomsData = Array.from(latestRoomsMap.values())
-
           res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify(roomsData))
+          res.end(JSON.stringify(allEvents)) // Send the full timeline
         } catch (error) {
           console.error("API Error:", error)
           res.statusCode = 500

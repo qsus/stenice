@@ -1,0 +1,18 @@
+2026-01-01
+# comment
+2026-02-06
+
+A108 quarantine
+
+B101 disinfected
+B108 disinfected
+B109 disinfected
+B116 disinfected
+B1601 disinfected
+
+
+A101 infected
+A112 infected
+A113 infected
+A124 infected
+A2001 infected

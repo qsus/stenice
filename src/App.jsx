@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { useGLTF, OrbitControls, Html } from '@react-three/drei'
+import { useGLTF, OrbitControls } from '@react-three/drei'
+import * as THREE from 'three'
 
 // Project dates
 const START_DATE = '2026-10-01'
@@ -15,16 +16,51 @@ function formatDate(ms) {
   return new Date(ms).toISOString().split('T')[0]
 }
 
-const STATUS_CONFIG = {
-  infected: { color: 'white', bg: '#ef4444', label: 'Infected' },
-  quarantine: { color: 'white', bg: '#f59e0b', label: 'Quarantine' },
-  disinfected: { color: 'white', bg: '#22c55e', label: 'Disinfected' },
+// Generates a soft, non-linear radial gradient for smooth blending
+function GasHeatmap({ activeRooms }) {
+  const particleTexture = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 128
+    canvas.height = 128
+    const context = canvas.getContext('2d')
+    
+    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64)
+    // Lower peak opacity and a gradual falloff removes the "distinct ball" hot center
+    gradient.addColorStop(0.0, 'rgba(255, 255, 255, 0.35)') 
+    gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.15)') 
+    gradient.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)') 
+    
+    context.fillStyle = gradient
+    context.fillRect(0, 0, 128, 128)
+    return new THREE.CanvasTexture(canvas)
+  }, [])
+
+  return (
+    <group>
+      {activeRooms.map(room => {
+        if (room.status === 'disinfected') return null;
+        
+        const hexColor = room.status === 'quarantine' ? '#f59e0b' : '#ef4444';
+
+        return (
+          // Scale is set large enough so neighboring points on the grid overlap naturally
+          <sprite key={room.id} position={room.position} scale={[14, 14, 14]}>
+            <spriteMaterial 
+              map={particleTexture}
+              color={hexColor}
+              depthTest={false} // Allows the color to pierce through the semi-transparent walls
+              transparent={true}
+              blending={THREE.AdditiveBlending}
+            />
+          </sprite>
+        )
+      })}
+    </group>
+  )
 }
 
 function BuildingScene({ selectedDate }) {
   const { scene } = useGLTF('/building.glb')
-  
-  // Stores the full chronological timeline of all events
   const [allEvents, setAllEvents] = useState([])
 
   // Fetch only once on mount
@@ -35,15 +71,28 @@ function BuildingScene({ selectedDate }) {
       .catch((err) => console.error('Failed to load data:', err))
   }, [])
 
+  // Apply the light gray mood with semi-transparency
+  useEffect(() => {
+    scene.traverse((node) => {
+      if (node.isMesh) {
+        node.material = new THREE.MeshStandardMaterial({
+          color: '#cccccc',      // Preserves the neutral, light gray mood
+          transparent: true,
+          opacity: 0.3,          // Semi-transparent to see the heatmap inside
+          depthWrite: true,     // Crucial for rendering transparent sprites behind transparent walls
+          roughness: 1.0,        // Matte finish, prevents glossy reflections
+          metalness: 0.0
+        })
+      }
+    })
+  }, [scene])
+
   // Instantly recompute active points when the slider or data changes
   const visibleRooms = useMemo(() => {
     const activeMap = new Map()
 
     for (const event of allEvents) {
-      // Replay events up to the selected date
       if (event.date <= selectedDate) {
-        // Because the array is strictly chronological, later updates 
-        // to the same room automatically overwrite older ones in the Map
         activeMap.set(event.id, event)
       }
     }
@@ -54,35 +103,7 @@ function BuildingScene({ selectedDate }) {
   return (
     <group>
       <primitive object={scene} />
-
-      {visibleRooms.map((room) => {
-        const config = STATUS_CONFIG[room.status] || STATUS_CONFIG.infected
-
-        return (
-          <Html 
-            key={room.id} 
-            position={room.position} 
-            center 
-            zIndexRange={[100, 0]}
-          >
-            <div style={{
-              background: config.bg,
-              color: config.color,
-              padding: '6px 10px',
-              borderRadius: '6px',
-              fontFamily: 'sans-serif',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              pointerEvents: 'none', 
-              whiteSpace: 'nowrap',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-              border: '1px solid rgba(255,255,255,0.2)'
-            }}>
-              {config.label}
-            </div>
-          </Html>
-        )
-      })}
+      <GasHeatmap activeRooms={visibleRooms} />
     </group>
   )
 }
@@ -136,25 +157,21 @@ export default function App() {
         </div>
       </div>
 
-      <Canvas camera={{ position: [8, 8, 8], fov: 45 }}>
+      <Canvas camera={{ position: [-200, 150, 150], fov: 40 }}>
+        {/* Base lighting to keep shadows from being completely dark */}
         <ambientLight intensity={0.6} />
-        <directionalLight position={[10, 20, 10]} intensity={1.5} />
         
-        <Suspense fallback={
-          <mesh>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshStandardMaterial color="orange" />
-            <Html center>
-              <div style={{ color: 'white', fontFamily: 'sans-serif', marginTop: '50px', whiteSpace: 'nowrap' }}>
-                Loading 3D model...
-              </div>
-            </Html>
-          </mesh>
-        }>
+        {/* Main light shining from the South (+Z) */}
+        <directionalLight position={[0, 20, 20]} intensity={1.5} />
+        
+        {/* Fill light shining from the North (-Z) to illuminate the back of the building */}
+        <directionalLight position={[0, 20, -20]} intensity={0.8} />
+        
+        <Suspense fallback={null}>
           <BuildingScene selectedDate={selectedDate} />
         </Suspense>
 
-        <OrbitControls makeDefault enableDamping dampingFactor={0.05} />
+        <OrbitControls makeDefault enableDamping dampingFactor={0.05} target={[-20, 10, -60]} />
       </Canvas>
     </div>
   )

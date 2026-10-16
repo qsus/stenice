@@ -17,6 +17,8 @@ A113 infected
 A124 infected
 A2001 infected
 
+
+2026-10-08
 B601 quarantine
 B602 quarantine
 B603 quarantine

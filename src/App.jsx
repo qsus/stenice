@@ -79,7 +79,7 @@ function BuildingScene({ selectedDate }) {
           color: '#cccccc',      // Preserves the neutral, light gray mood
           transparent: true,
           opacity: 0.3,          // Semi-transparent to see the heatmap inside
-          depthWrite: true,     // Crucial for rendering transparent sprites behind transparent walls
+          depthWrite: false,     // Influences rendering transparent sprites behind transparent walls
           roughness: 1.0,        // Matte finish, prevents glossy reflections
           metalness: 0.0
         })

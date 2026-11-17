@@ -1,0 +1,42 @@
+# Project Context: 3D Building Infection Heatmap
+
+## 1. Project Overview
+The application is a web-based 3D visualization tool that displays the spread of an infection across rooms in a building over time. Users can rotate a 3D sketch of the building and use a timeline slider to see how the status of rooms (infected, quarantine, disinfected) changes. To protect privacy, individual points are blended into a volumetric, fuzzy heatmap.
+
+## 2. Technology Stack
+*   **Frontend:** React 19, Vite.
+*   **3D Engine:** Three.js wrapped in React Three Fiber (R3F) and @react-three/drei.
+*   **Asset Pipeline:** 3D building modeled in Blender, exported as a binary GLTF (`.glb`).
+
+## 3. Application Architecture & Data Flow
+The application strictly separates data processing from client rendering to prevent the leakage of raw data files.
+
+*   **Backend (Vite Dev Server Middleware):**
+    *   Instead of a standalone Express server, a custom Vite plugin intercepts requests to `/api/infected-rooms`.
+    *   It reads a raw `status.txt` file from the server's disk (format: dates intermixed with `RoomID Status` lines).
+    *   It parses the file chronologically, converting architectural Room IDs (e.g., 'B106') into physical `[x, y, z]` world coordinates.
+    *   It outputs a flat JSON array of all chronological events containing: `id`, `position`, `status`, and `date`.
+*   **Frontend Data Handling:**
+    *   The React client fetches the full historical JSON timeline exactly once on mount.
+    *   A UI slider provides a `selectedDate` state.
+    *   The client uses `useMemo` to iterate through the timeline and maintain a Map of the latest active status for each room up to the `selectedDate`. This allows instant, zero-latency timeline scrubbing without network requests.
+
+## 4. 3D Rendering Architecture
+The visual design utilizes a dark, isometric mood with semi-transparent architecture and a glowing internal heatmap.
+
+*   **Building Mesh Processing:**
+    *   The `.glb` scene is traversed upon loading.
+    *   Original materials are programmatically overridden with a unified, semi-transparent gray `MeshStandardMaterial` (opacity ~0.3).
+    *   `depthWrite` is disabled on the building walls to prevent sorting conflicts with internal transparent elements.
+*   **Volumetric Heatmap (Optical Fusion):**
+    *   Instead of complex raymarching shaders, the heatmap is achieved optically using `THREE.Sprite` objects placed at the active room coordinates.
+    *   A custom, non-linear radial gradient texture is generated dynamically in memory via the HTML Canvas 2D API (fading from low opacity white at the core to fully transparent at the edges).
+    *   Sprites are rendered with `AdditiveBlending` and `depthTest: false`.
+    *   **Result:** The `depthTest` override allows the sprites to pierce through the semi-transparent walls so they are fully visible. The `AdditiveBlending` causes overlapping soft sprites to naturally sum their values, creating a continuous, glowing fog/cloud effect that obscures distinct room boundaries. Disinfected rooms are filtered out of the render loop.
+*   **Lighting:**
+    *   A high ambient light base prevents pitch-black shadows.
+    *   Primary directional lighting shines from the South.
+    *   A secondary, weaker directional fill light shines from the North to ensure the back faces of the building remain visible.
+*   **Responsive Camera:**
+    *   A custom React component hooks into the canvas resize events.
+    *   If a mobile screen width is detected, it programmatically widens the camera's Field of View (`fov`), acting as a wide-angle lens to ensure the horizontal width of the building remains within the phone's viewport bounds.

@@ -38,7 +38,7 @@ function getRoomCoordinates(roomName) {
     z += BoriginY; // I don't get why this should be negative
   }
 
-  y = (2.5 + floor) * floorY; // skip 0. and 1. floor and put the pointer inside the middle  
+  y = (1.5 + floor) * floorY; // skip 0. double-floor and put the pointer inside the middle  
 
   return [x, y, -z]
 }

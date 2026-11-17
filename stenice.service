@@ -1,0 +1,14 @@
+[Unit]
+Description=Štěnice API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/stenice
+ExecStart=/root/.local/share/fnm/aliases/default/bin/node server/api.js
+Restart=always
+Environment=PORT=3001
+
+[Install]
+WantedBy=multi-user.target

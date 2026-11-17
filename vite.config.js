@@ -11,16 +11,11 @@ function getRoomCoordinates(roomName) {
   const floor = Number(roomName.slice(1, -2));
   const room = Number(roomName.slice(-2));
 
-  const Ay = 45, blockWidth = 23, By = 31;
-  const BoriginX = -20 - blockWidth, BoriginY = 26 + Ay;
-  const floorY = 0.17*16; // stair height times their count per floor
-  const roomWidth = 3.875;
+  const BoriginX = -44, BoriginY = 70; // from blender origins
+  const floorHeight = 0.17*16; // stair height times their count per floor
+  const blockWidth = 23, roomWidth = 3.75;
 
-  // Generate random coordinates spread across a 10x10x10 area for testing
-  let x = 0;
-  let y = 0;
-  let z = 0;
-
+  let x = 0, y = 0, z = 0;
 
   // determine east/west location and calculate number of rooms from south
   const buildingRowRooms = building === 'A' ? 12 : 8; // TODO: verify for A
@@ -35,10 +30,10 @@ function getRoomCoordinates(roomName) {
   // move to building B origin
   if (building === 'B') {
     x += BoriginX;
-    z += BoriginY; // I don't get why this should be negative
+    z += BoriginY;
   }
 
-  y = (1.5 + floor) * floorY; // skip 0. double-floor and put the pointer inside the middle  
+  y = (1.5 + floor) * floorHeight; // skip 0. double-floor and put the pointer inside the middle  
 
   return [x, y, -z]
 }
